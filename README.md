@@ -51,6 +51,7 @@ You add your signer — a `Keypair`, a browser wallet, or an agent's signer — 
 ```ts
 // Reads
 keep.getRaise(projectId)                  // a raise's full on-chain state
+keep.listRaises()                         // all raises (decoded)
 keep.getPosition(projectId, wallet)       // a backer's deposit position
 keep.getClaimPool(projectId)              // the failure-path refund pool
 keep.getFactory()                         // global config + next project id
@@ -58,6 +59,8 @@ keep.quote(projectId, { side, amountIn }) // expected swap output (to set minOut
 
 // Start a raise (a builder deploys a launchpad)
 keep.createRaise({ owner, mint, name, symbol })  // sign with [owner, mintKeypair]
+keep.setMetadata(projectId, { owner, name, symbol, uri })  // Metaplex name/logo
+keep.setWhitelistRoot(projectId, { owner, root })          // Private/Hybrid allowlist
 
 // Back, refund, claim (Keep-native, refund-protected)
 keep.back(projectId, { amount, backer })        // fund a raise at the fixed price
