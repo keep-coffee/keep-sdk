@@ -21,6 +21,7 @@ import type { RaiseAccount, DepositorAccount, ClaimPoolAccount } from './account
 import { ProjectState, isTradable } from './types';
 import { backInstructions } from './instructions/back';
 import { claimRefundInstruction } from './instructions/claimRefund';
+import { claimInstruction } from './instructions/claim';
 import { createAtaIdempotentInstruction } from './instructions/shared';
 import { sellNativeInstruction } from './instructions/sell';
 import { decodePool, raydiumSwapInstruction, quoteSwapOut } from './raydium';
@@ -60,6 +61,11 @@ export interface BackOpts extends TxOpts {
 
 export interface RefundOpts extends TxOpts {
   /** The backer's wallet — signs and receives the refund. */
+  backer: PublicKey;
+}
+
+export interface ClaimOpts extends TxOpts {
+  /** The backer's wallet — signs and receives the tokens. */
   backer: PublicKey;
 }
 
@@ -207,6 +213,28 @@ export class KeepClient {
       backer: opts.backer,
       isFailure,
       hasDepositor,
+    });
+    return this.buildTx([ix], opts.backer, opts);
+  }
+
+  /**
+   * Claim a successful raise's token allocation to the backer's wallet. Normally
+   * unnecessary — the keeper auto-distributes tokens — but available as a backstop
+   * from HoldPeriod1 onward. The instruction self-creates the backer's token ATA.
+   */
+  async claim(projectId: bigint | number, opts: ClaimOpts): Promise<Transaction> {
+    const launchpad = this.launchpadAddress(projectId);
+    const raise = await this.getRaiseByAddress(launchpad);
+    if (!raise) throw new Error(`raise #${String(projectId)} not found`);
+    if (!isTradable(raise.state)) {
+      throw new Error(`raise #${String(projectId)} is ${raise.state} — tokens not claimable yet`);
+    }
+    const ix = claimInstruction({
+      programId: this.programId,
+      launchpad,
+      tokenVault: raise.tokenVault,
+      projectMint: raise.projectTokenMint,
+      backer: opts.backer,
     });
     return this.buildTx([ix], opts.backer, opts);
   }

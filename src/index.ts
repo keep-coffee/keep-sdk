@@ -11,6 +11,7 @@ export * from './types';
 export * from './accounts';
 export * from './client';
 export * from './instructions/back';
+export * from './instructions/claim';
 export * from './instructions/claimRefund';
 export * from './instructions/sell';
 export * from './instructions/shared';
