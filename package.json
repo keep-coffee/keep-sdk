@@ -1,0 +1,63 @@
+{
+  "name": "@keep-coffee/sdk",
+  "version": "0.0.1",
+  "description": "TypeScript SDK for Keep — non-custodial, refundable onchain fundraising on Solana, built for AI builders and agents.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "solana",
+    "ai-agents",
+    "langchain",
+    "eliza",
+    "onchain-fundraising",
+    "fundraising",
+    "refundable",
+    "raydium",
+    "web3",
+    "typescript",
+    "defi"
+  ],
+  "peerDependencies": {
+    "@solana/web3.js": "^1.95.0"
+  },
+  "dependencies": {
+    "@noble/hashes": "^1.4.0",
+    "@solana/spl-token": "^0.4.8"
+  },
+  "devDependencies": {
+    "@solana/web3.js": "^1.95.0",
+    "@types/node": "^22.0.0",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/keep-coffee/keep-sdk.git"
+  },
+  "homepage": "https://keep.coffee",
+  "bugs": {
+    "url": "https://github.com/keep-coffee/keep-sdk/issues"
+  }
+}
