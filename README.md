@@ -53,7 +53,11 @@ You add your signer — a `Keypair`, a browser wallet, or an agent's signer — 
 keep.getRaise(projectId)                  // a raise's full on-chain state
 keep.getPosition(projectId, wallet)       // a backer's deposit position
 keep.getClaimPool(projectId)              // the failure-path refund pool
+keep.getFactory()                         // global config + next project id
 keep.quote(projectId, { side, amountIn }) // expected swap output (to set minOut)
+
+// Start a raise (a builder deploys a launchpad)
+keep.createRaise({ owner, mint, name, symbol })  // sign with [owner, mintKeypair]
 
 // Back, refund, claim (Keep-native, refund-protected)
 keep.back(projectId, { amount, backer })        // fund a raise at the fixed price
@@ -63,9 +67,19 @@ keep.claim(projectId, { backer })               // collect your tokens on succes
 // Trade the graduated market
 keep.buy(projectId,  { usdcIn,  minTokenOut, trader })  // open-market swap (Raydium)
 keep.sell(projectId, { tokenIn, minUsdcOut,  trader })  // Keep-native in hold, Raydium after
+```
 
-// Coming next
-keep.createRaise({ ... })                 // a builder starts a raise
+Starting a raise mints a new token, so sign the returned transaction with both
+the owner and the mint keypair:
+
+```ts
+import { Keypair } from '@solana/web3.js';
+
+const mint = Keypair.generate(); // optionally vanity-ground to a *keep suffix
+const { transaction, projectId } = await keep.createRaise({
+  owner: owner.publicKey, mint: mint.publicKey, name: 'My Project', symbol: 'MYP',
+});
+await connection.sendTransaction(transaction, [owner, mint]);
 ```
 
 Every write method returns an unsigned `Transaction`.
