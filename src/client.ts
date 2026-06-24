@@ -28,6 +28,8 @@ import { backInstructions } from './instructions/back';
 import { claimRefundInstruction } from './instructions/claimRefund';
 import { claimInstruction } from './instructions/claim';
 import { createProjectInstruction, initVaultsInstruction } from './instructions/createRaise';
+import { setWhitelistRootInstruction } from './instructions/setWhitelistRoot';
+import { setMetadataInstruction } from './instructions/setMetadata';
 import { createAtaIdempotentInstruction } from './instructions/shared';
 import { sellNativeInstruction } from './instructions/sell';
 import { decodePool, raydiumSwapInstruction, quoteSwapOut } from './raydium';
@@ -136,6 +138,22 @@ export interface CreateRaiseResult {
   launchpad: PublicKey;
 }
 
+export interface SetWhitelistRootOpts extends TxOpts {
+  /** Project owner — signs and pays. */
+  owner: PublicKey;
+  /** 32-byte Merkle root from `merkleRoot(addresses)`. */
+  root: Uint8Array;
+}
+
+export interface SetMetadataOpts extends TxOpts {
+  /** Project owner — signs and pays. */
+  owner: PublicKey;
+  name: string;
+  symbol: string;
+  /** URI of the hosted metadata JSON (Metaplex schema, <= 200 chars). */
+  uri: string;
+}
+
 export class KeepClient {
   readonly config: NetworkConfig;
   readonly connection: Connection;
@@ -195,6 +213,41 @@ export class KeepClient {
     return ai ? decodeFactory(ai.data) : null;
   }
 
+  /**
+   * List raises by reading the factory's project counter and batch-fetching each
+   * launchpad (no getProgramAccounts — RPC-friendly). Returns decoded raises with
+   * their launchpad address; undecodable/missing slots are skipped.
+   */
+  async listRaises(opts?: {
+    fromId?: bigint;
+    limit?: number;
+  }): Promise<Array<RaiseAccount & { address: PublicKey }>> {
+    const factory = await this.getFactory();
+    if (!factory) return [];
+    const ids: bigint[] = [];
+    for (let i = opts?.fromId ?? 0n; i < factory.nextProjectId; i++) {
+      ids.push(i);
+      if (opts?.limit && ids.length >= opts.limit) break;
+    }
+    const out: Array<RaiseAccount & { address: PublicKey }> = [];
+    for (let i = 0; i < ids.length; i += 100) {
+      const batch = ids.slice(i, i + 100);
+      const pdas = batch.map((id) => this.launchpadAddress(id));
+      const infos = await this.connection.getMultipleAccountsInfo(pdas);
+      infos.forEach((ai, j) => {
+        const address = pdas[j];
+        if (ai && address) {
+          try {
+            out.push({ ...decodeRaise(ai.data), address });
+          } catch {
+            /* skip undecodable */
+          }
+        }
+      });
+    }
+    return out;
+  }
+
   // ── Writes (return unsigned transactions; the caller signs) ──
 
   /**
@@ -240,6 +293,43 @@ export class KeepClient {
       computeUnitLimit: opts.computeUnitLimit ?? 400_000,
     });
     return { transaction, projectId, launchpad };
+  }
+
+  /**
+   * Commit a Private/Hybrid raise's allowlist root (build it with
+   * `merkleRoot(addresses)`). Owner-signed, during Fundraising.
+   */
+  async setWhitelistRoot(
+    projectId: bigint | number,
+    opts: SetWhitelistRootOpts,
+  ): Promise<Transaction> {
+    const ix = setWhitelistRootInstruction({
+      programId: this.programId,
+      projectId: BigInt(projectId),
+      owner: opts.owner,
+      root: opts.root,
+    });
+    return this.buildTx([ix], opts.owner, opts);
+  }
+
+  /**
+   * Set the project token's Metaplex metadata (name/symbol/uri in wallets).
+   * Cosmetic; call once after createRaise (still Fundraising). Reads the raise
+   * for the mint. `uri` must point at a hosted metadata JSON you host.
+   */
+  async setMetadata(projectId: bigint | number, opts: SetMetadataOpts): Promise<Transaction> {
+    const raise = await this.getRaise(projectId);
+    if (!raise) throw new Error(`raise #${String(projectId)} not found`);
+    const ix = setMetadataInstruction({
+      programId: this.programId,
+      projectId: BigInt(projectId),
+      mint: raise.projectTokenMint,
+      owner: opts.owner,
+      name: opts.name,
+      symbol: opts.symbol,
+      uri: opts.uri,
+    });
+    return this.buildTx([ix], opts.owner, opts);
   }
 
   /**

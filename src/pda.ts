@@ -8,6 +8,7 @@
 import { PublicKey } from '@solana/web3.js';
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
+  MPL_TOKEN_METADATA_ID,
   TOKEN_PROGRAM_ID,
 } from './constants';
 
@@ -85,5 +86,13 @@ export function ata(mint: PublicKey, owner: PublicKey): PublicKey {
   return PublicKey.findProgramAddressSync(
     [owner.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mint.toBuffer()],
     ASSOCIATED_TOKEN_PROGRAM_ID,
+  )[0];
+}
+
+/** Metaplex Token Metadata PDA for a mint: ['metadata', MPL, mint] under MPL. */
+export function metadataPda(mint: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from('metadata'), MPL_TOKEN_METADATA_ID.toBuffer(), mint.toBuffer()],
+    MPL_TOKEN_METADATA_ID,
   )[0];
 }

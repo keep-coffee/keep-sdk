@@ -51,6 +51,8 @@ export const TOKEN_2022_PROGRAM_ID = new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC
 export const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
 export const SYSTEM_PROGRAM_ID = new PublicKey('11111111111111111111111111111111');
 export const SYSVAR_RENT_PUBKEY = new PublicKey('SysvarRent111111111111111111111111111111111');
+/** Metaplex Token Metadata program (used by set_metadata). */
+export const MPL_TOKEN_METADATA_ID = new PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s');
 
 // ── Protocol economics (env-independent; mirror constants.rs) ──
 export const PROJECT_TOKEN_DECIMALS = 6;
