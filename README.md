@@ -39,7 +39,7 @@ const raise = await keep.getRaise(0);
 console.log(raise.state, raise.totalRaised, raise.raiseTarget);
 
 // Back a raise during fundraising (fixed-price, refundable on the failure paths).
-const tx = await keep.back(0, { usdc: 50_000_000n, backer: wallet.publicKey }); // 50 USDC
+const tx = await keep.back(0, { amount: 50_000_000n, backer: wallet.publicKey }); // 50 USDC
 const sig = await connection.sendTransaction(tx, [wallet]);
 ```
 
@@ -49,20 +49,20 @@ You add your signer — a `Keypair`, a browser wallet, or an agent's signer — 
 ## Core API
 
 ```ts
-// Lifecycle — Keep-native, refund-protected
-keep.createRaise({ name, symbol, ... })      // a builder starts a raise
-keep.back(projectId, { usdc, backer })       // fund a raise at the fixed price
-keep.claim(projectId, { backer })            // collect your tokens on success
-keep.claimRefund(projectId, { backer })      // get your refund on a failure path
+// Reads — available now
+keep.getRaise(projectId)                 // a raise's full on-chain state
+keep.getPosition(projectId, wallet)      // a backer's deposit position
+keep.getClaimPool(projectId)             // the failure-path refund pool
 
-// Secondary market — the open Raydium pool, after a raise graduates
-keep.buy(projectId,  { usdcIn,  minTokenOut, trader })
-keep.sell(projectId, { tokenIn, minUsdcOut,  trader })
+// Back & refund — available now (Keep-native, refund-protected)
+keep.back(projectId, { amount, backer })       // fund a raise at the fixed price
+keep.claimRefund(projectId, { backer })        // refund on a failure / cancel path
 
-// Reads
-keep.getRaise(projectId)
-keep.listRaises()
-keep.getPosition(projectId, wallet)
+// Coming next
+keep.claim(projectId, { backer })        // collect your tokens on success
+keep.buy(projectId,  { ... })            // open-market swap (Raydium)
+keep.sell(projectId, { ... })            // open-market sell (Keep-native, updates TWAP)
+keep.createRaise({ ... })                // a builder starts a raise
 ```
 
 `back` and `buy` are different actions, deliberately kept distinct:
@@ -72,12 +72,24 @@ keep.getPosition(projectId, wallet)
 - **`buy`** is an ordinary open-market swap after the token is trading. It has **no
   refund protection** — it's a normal market trade.
 
+## Networks & versioning
+
+Mainnet only. This SDK targets the Keep program **v2.4** and follows semantic
+versioning — a breaking program upgrade ships as a new SDK major. Reads stay
+forward-compatible with append-only account growth. For advanced or internal
+testing against another deployment, pass a custom `config` to `KeepClient`.
+
 ## Use it from an agent
 
 ```ts
 import { KeepClient } from '@keep-coffee/sdk';
 // A LangChain / ELIZA tool wrapper ships in examples/.
 ```
+
+## Resources
+
+- Product: [keep.coffee](https://keep.coffee)
+- Issues & questions: [github.com/keep-coffee/keep-sdk/issues](https://github.com/keep-coffee/keep-sdk/issues)
 
 ## License
 
