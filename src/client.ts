@@ -19,6 +19,7 @@ import { decodeRaise, decodeDepositor, decodeClaimPool } from './accounts';
 import type { RaiseAccount, DepositorAccount, ClaimPoolAccount } from './accounts';
 import { ProjectState } from './types';
 import { backInstructions } from './instructions/back';
+import { claimRefundInstruction } from './instructions/claimRefund';
 
 export interface KeepClientConfig {
   /** Target network. Defaults to 'mainnet'. */
@@ -50,6 +51,11 @@ export interface BackOpts extends TxOpts {
   backer: PublicKey;
   /** Merkle proof for Private/Hybrid allowlisted backers (omit for Public). */
   whitelistProof?: Uint8Array[];
+}
+
+export interface RefundOpts extends TxOpts {
+  /** The backer's wallet — signs and receives the refund. */
+  backer: PublicKey;
 }
 
 export class KeepClient {
@@ -130,6 +136,48 @@ export class KeepClient {
       whitelistProof: opts.whitelistProof,
     });
     return this.buildTx(ixns, opts.backer, opts);
+  }
+
+  /**
+   * Claim a refund on a terminal raise. Works on Cancelled (1:1) and Failed1/
+   * Failed2 (burn-and-refund); a Fundraising raise past its deadline self-cancels
+   * when this runs. Returns an unsigned Transaction. Throws if not refundable.
+   */
+  async claimRefund(projectId: bigint | number, opts: RefundOpts): Promise<Transaction> {
+    const launchpad = this.launchpadAddress(projectId);
+    const raise = await this.getRaiseByAddress(launchpad);
+    if (!raise) throw new Error(`raise #${String(projectId)} not found`);
+
+    const now = Math.floor(Date.now() / 1000);
+    const isFailure =
+      raise.state === ProjectState.Failed1 || raise.state === ProjectState.Failed2;
+    const expired =
+      raise.state === ProjectState.Fundraising && now >= Number(raise.fundraiseDeadlineTs);
+    const isCancelled = raise.state === ProjectState.Cancelled || expired;
+    if (!isFailure && !isCancelled) {
+      throw new Error(`raise #${String(projectId)} is ${raise.state} — not refundable`);
+    }
+
+    const depAi = await this.connection.getAccountInfo(
+      depositorPda(this.programId, launchpad, opts.backer),
+    );
+    const hasDepositor = !!depAi;
+    if (isCancelled && !hasDepositor) {
+      throw new Error('this wallet has no deposit to refund');
+    }
+
+    const ix = claimRefundInstruction({
+      programId: this.programId,
+      launchpad,
+      usdcMint: this.config.usdcMint,
+      usdcVault: raise.usdcVault,
+      projectMint: raise.projectTokenMint,
+      tokenVault: raise.tokenVault,
+      backer: opts.backer,
+      isFailure,
+      hasDepositor,
+    });
+    return this.buildTx([ix], opts.backer, opts);
   }
 
   /** Assemble instructions into an unsigned tx with a compute budget + blockhash. */
