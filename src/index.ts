@@ -8,3 +8,5 @@ export * from './constants';
 export * from './coder';
 export * from './pda';
 export * from './types';
+export * from './accounts';
+export * from './client';

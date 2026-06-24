@@ -9,10 +9,10 @@
  */
 import { PublicKey } from '@solana/web3.js';
 
-// Public surface = two environments only: mainnet (production) + devnet (test).
-// The internal fast-clock sandbox is not exposed to external developers; for
-// internal soak testing, pass a custom NetworkConfig to the client instead.
-export type Network = 'mainnet' | 'devnet';
+// Public surface = mainnet (production) only. Devnet and the internal fast-clock
+// sandbox are not exposed; for internal/advanced testing against another program,
+// pass a custom NetworkConfig to the client instead.
+export type Network = 'mainnet';
 
 export interface NetworkConfig {
   readonly network: Network;
@@ -40,17 +40,6 @@ export const NETWORKS: Record<Network, NetworkConfig> = {
     raydiumCpmm: new PublicKey('CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C'),
     raydiumAmmConfig: new PublicKey('G95xxie3XbkCqtE39GgQ9Ggc7xBC8Uceve7HFDEFApkc'),
     raydiumCreatePoolFee: new PublicKey('DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8'),
-    raiseTarget: 20_000_000_000n, // 20,000 USDC
-  },
-  devnet: {
-    network: 'devnet',
-    cluster: 'devnet',
-    defaultRpc: 'https://api.devnet.solana.com',
-    programId: new PublicKey('Coj4mFsEuTtki548eJxBPp4xCAauVusDf2tVzACzjoV3'),
-    usdcMint: new PublicKey('MKPnXt6U8X6ngFnG2KecjzZFDHUiDsmk6gxZe4b94gV'), // devnet mock USDC
-    raydiumCpmm: new PublicKey('DRaycpLY18LhpbydsBWbVJtxpNv9oXPgjRSfpF2bWpYb'),
-    raydiumAmmConfig: new PublicKey('EsTevfacYXpuho5VBuzBjDZi8dtWidGnXoSYAr8krTvz'),
-    raydiumCreatePoolFee: new PublicKey('3oE58BKVt8KuYkGxx8zBojugnymWmBiyafWgMrnb6eYy'),
     raiseTarget: 20_000_000_000n, // 20,000 USDC
   },
 };
