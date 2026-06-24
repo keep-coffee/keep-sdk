@@ -15,13 +15,19 @@ import {
 import type { Commitment } from '@solana/web3.js';
 import { NETWORKS } from './constants';
 import type { Network, NetworkConfig } from './constants';
-import { launchpadPda, depositorPda, claimPoolPda } from './pda';
-import { decodeRaise, decodeDepositor, decodeClaimPool } from './accounts';
-import type { RaiseAccount, DepositorAccount, ClaimPoolAccount } from './accounts';
-import { ProjectState, isTradable } from './types';
+import { launchpadPda, depositorPda, claimPoolPda, factoryPda } from './pda';
+import { decodeRaise, decodeDepositor, decodeClaimPool, decodeFactory } from './accounts';
+import type {
+  RaiseAccount,
+  DepositorAccount,
+  ClaimPoolAccount,
+  FactoryConfigAccount,
+} from './accounts';
+import { ProjectState, AccessMode, isTradable } from './types';
 import { backInstructions } from './instructions/back';
 import { claimRefundInstruction } from './instructions/claimRefund';
 import { claimInstruction } from './instructions/claim';
+import { createProjectInstruction, initVaultsInstruction } from './instructions/createRaise';
 import { createAtaIdempotentInstruction } from './instructions/shared';
 import { sellNativeInstruction } from './instructions/sell';
 import { decodePool, raydiumSwapInstruction, quoteSwapOut } from './raydium';
@@ -95,6 +101,41 @@ export interface SwapQuote {
   tokenReserve: bigint;
 }
 
+export interface CreateRaiseOpts extends TxOpts {
+  /** Project owner — signs and pays. */
+  owner: PublicKey;
+  /**
+   * The new token mint. Generate a Keypair (optionally vanity `*keep`) and sign
+   * the returned transaction with BOTH the owner and this mint keypair.
+   */
+  mint: PublicKey;
+  /** Display name (<= 32 chars). */
+  name: string;
+  /** Token symbol (<= 8 chars). */
+  symbol: string;
+  /** Access mode (default Public). */
+  mode?: AccessMode;
+  /** Per-address USDC cap for allowlisted backers (0 = unlimited). */
+  whitelistMaxPerAddress?: bigint;
+  /** Per-address USDC cap for public backers (0 = unlimited). */
+  publicMaxPerAddress?: bigint;
+  /** Hybrid reserved allocation in USDC base units (0 = none). */
+  whitelistAllocation?: bigint;
+  /** Warmup/Upcoming window before deposits open, in seconds (0 = immediate). */
+  warmupSecs?: bigint | number;
+  /** Success gate in bps of launch price (0 = program default/floor 8500). */
+  successThresholdBps?: number;
+}
+
+export interface CreateRaiseResult {
+  /** Unsigned tx — sign with [owner, mintKeypair] and send. */
+  transaction: Transaction;
+  /** The id assigned to this raise (valid only if this tx lands next). */
+  projectId: bigint;
+  /** The launchpad account address this raise will live at. */
+  launchpad: PublicKey;
+}
+
 export class KeepClient {
   readonly config: NetworkConfig;
   readonly connection: Connection;
@@ -148,7 +189,58 @@ export class KeepClient {
     return ai ? decodeClaimPool(ai.data) : null;
   }
 
+  /** Read the global FactoryConfig singleton (governance + the project counter). */
+  async getFactory(): Promise<FactoryConfigAccount | null> {
+    const ai = await this.connection.getAccountInfo(factoryPda(this.programId));
+    return ai ? decodeFactory(ai.data) : null;
+  }
+
   // ── Writes (return unsigned transactions; the caller signs) ──
+
+  /**
+   * Create a new raise — a builder deploys a launchpad. Reads the FactoryConfig
+   * for the next project id, then builds an atomic create_project + init_vaults
+   * transaction. Sign it with BOTH the owner and the mint keypair:
+   *
+   *   const { transaction } = await keep.createRaise({ owner, mint: mintKp.publicKey, name, symbol });
+   *   await connection.sendTransaction(transaction, [ownerKp, mintKp]);
+   *
+   * The returned `projectId` is only valid if this tx lands next — a concurrent
+   * create bumps the counter and this tx fails the seeds check; just retry.
+   */
+  async createRaise(opts: CreateRaiseOpts): Promise<CreateRaiseResult> {
+    const factory = await this.getFactory();
+    if (!factory) throw new Error('factory not initialized on this network');
+    if (factory.paused) throw new Error('factory is paused — new raises are disabled');
+    const projectId = factory.nextProjectId;
+    const launchpad = this.launchpadAddress(projectId);
+    const createIx = createProjectInstruction({
+      programId: this.programId,
+      projectId,
+      owner: opts.owner,
+      mint: opts.mint,
+      name: opts.name,
+      symbol: opts.symbol,
+      mode: opts.mode ?? AccessMode.Public,
+      whitelistMaxPerAddress: opts.whitelistMaxPerAddress ?? 0n,
+      publicMaxPerAddress: opts.publicMaxPerAddress ?? 0n,
+      whitelistAllocation: opts.whitelistAllocation ?? 0n,
+      warmupSecs: BigInt(opts.warmupSecs ?? 0),
+      successThresholdBps: opts.successThresholdBps ?? 0,
+    });
+    const initIx = initVaultsInstruction({
+      programId: this.programId,
+      projectId,
+      owner: opts.owner,
+      mint: opts.mint,
+      usdcMint: this.config.usdcMint,
+    });
+    const transaction = await this.buildTx([createIx, initIx], opts.owner, {
+      ...opts,
+      computeUnitLimit: opts.computeUnitLimit ?? 400_000,
+    });
+    return { transaction, projectId, launchpad };
+  }
 
   /**
    * Back (deposit into) a raise during fundraising — the refund-protected entry.

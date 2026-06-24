@@ -175,3 +175,26 @@ export function decodeClaimPool(data: Uint8Array): ClaimPoolAccount {
     feeToPlatform: r.u64(),
   };
 }
+
+/** `FactoryConfig` — the global singleton (governance + the project counter). */
+export interface FactoryConfigAccount {
+  owner: PublicKey;
+  platformFeeReceiver: PublicKey;
+  /** The id the NEXT created project will get (and its launchpad PDA seed). */
+  nextProjectId: bigint;
+  paused: boolean;
+  bump: number;
+  feeSplitProjectBps: number;
+}
+
+export function decodeFactory(data: Uint8Array): FactoryConfigAccount {
+  const r = new Reader(body(data, 'FactoryConfig'));
+  return {
+    owner: r.pubkey(),
+    platformFeeReceiver: r.pubkey(),
+    nextProjectId: r.u64(),
+    paused: r.bool(),
+    bump: r.u8(),
+    feeSplitProjectBps: r.u16(),
+  };
+}

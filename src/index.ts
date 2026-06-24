@@ -13,6 +13,7 @@ export * from './client';
 export * from './instructions/back';
 export * from './instructions/claim';
 export * from './instructions/claimRefund';
+export * from './instructions/createRaise';
 export * from './instructions/sell';
 export * from './instructions/shared';
 export * from './raydium';
