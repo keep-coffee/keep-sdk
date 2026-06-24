@@ -12,3 +12,6 @@ export * from './accounts';
 export * from './client';
 export * from './instructions/back';
 export * from './instructions/claimRefund';
+export * from './instructions/sell';
+export * from './instructions/shared';
+export * from './raydium';

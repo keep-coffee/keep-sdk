@@ -14,8 +14,7 @@ import { PublicKey, SystemProgram, TransactionInstruction } from '@solana/web3.j
 import { disc } from '../coder';
 import { TOKEN_PROGRAM_ID } from '../constants';
 import { ata, claimPoolPda, depositorPda } from '../pda';
-
-const k = (pubkey: PublicKey, isSigner: boolean, isWritable: boolean) => ({ pubkey, isSigner, isWritable });
+import { acctKey as k } from './shared';
 
 export interface ClaimRefundParams {
   programId: PublicKey;

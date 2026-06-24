@@ -13,10 +13,9 @@
  */
 import { PublicKey, SystemProgram, TransactionInstruction } from '@solana/web3.js';
 import { disc, u64le, borshVec32 } from '../coder';
-import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '../constants';
+import { TOKEN_PROGRAM_ID } from '../constants';
 import { ata, depositorPda, emergencyPda, wlRootPda } from '../pda';
-
-const k = (pubkey: PublicKey, isSigner: boolean, isWritable: boolean) => ({ pubkey, isSigner, isWritable });
+import { acctKey as k, createAtaIdempotentInstruction } from './shared';
 
 export interface BackParams {
   programId: PublicKey;
@@ -43,21 +42,9 @@ export interface BackParams {
  */
 export function backInstructions(p: BackParams): TransactionInstruction[] {
   const proof = p.whitelistProof ?? [];
-  const userTokenAta = ata(p.projectMint, p.backer);
 
-  // 1) createAssociatedTokenAccountIdempotent (ATA-program instruction byte 1).
-  const createAtaIx = new TransactionInstruction({
-    programId: ASSOCIATED_TOKEN_PROGRAM_ID,
-    keys: [
-      k(p.backer, true, true), // payer
-      k(userTokenAta, false, true), // ata to create
-      k(p.backer, false, false), // owner
-      k(p.projectMint, false, false), // mint
-      k(SystemProgram.programId, false, false),
-      k(TOKEN_PROGRAM_ID, false, false),
-    ],
-    data: Buffer.from([1]),
-  });
+  // 1) createAssociatedTokenAccountIdempotent for the backer's project-token ATA.
+  const createAtaIx = createAtaIdempotentInstruction(p.backer, p.backer, p.projectMint);
 
   // 2) deposit — account #4 is the allowlist gate: the wl_root PDA when proving
   // membership, else the program id (Option::None).

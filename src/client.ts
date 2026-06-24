@@ -8,6 +8,7 @@ import {
   ComputeBudgetProgram,
   Connection,
   PublicKey,
+  SystemProgram,
   Transaction,
   TransactionInstruction,
 } from '@solana/web3.js';
@@ -17,9 +18,13 @@ import type { Network, NetworkConfig } from './constants';
 import { launchpadPda, depositorPda, claimPoolPda } from './pda';
 import { decodeRaise, decodeDepositor, decodeClaimPool } from './accounts';
 import type { RaiseAccount, DepositorAccount, ClaimPoolAccount } from './accounts';
-import { ProjectState } from './types';
+import { ProjectState, isTradable } from './types';
 import { backInstructions } from './instructions/back';
 import { claimRefundInstruction } from './instructions/claimRefund';
+import { createAtaIdempotentInstruction } from './instructions/shared';
+import { sellNativeInstruction } from './instructions/sell';
+import { decodePool, raydiumSwapInstruction, quoteSwapOut } from './raydium';
+import type { PoolInfo } from './raydium';
 
 export interface KeepClientConfig {
   /** Target network. Defaults to 'mainnet'. */
@@ -56,6 +61,32 @@ export interface BackOpts extends TxOpts {
 export interface RefundOpts extends TxOpts {
   /** The backer's wallet — signs and receives the refund. */
   backer: PublicKey;
+}
+
+export interface BuyOpts extends TxOpts {
+  /** USDC to spend, in base units. */
+  usdcIn: bigint;
+  /** Minimum project tokens out (slippage floor) — never 0 on a real trade. */
+  minTokenOut: bigint;
+  /** The trader's wallet — signs and pays. */
+  trader: PublicKey;
+}
+
+export interface SellOpts extends TxOpts {
+  /** Project tokens to sell, in base units. */
+  tokenIn: bigint;
+  /** Minimum USDC out (slippage floor) — never 0 on a real trade. */
+  minUsdcOut: bigint;
+  /** The trader's wallet — signs. */
+  trader: PublicKey;
+}
+
+export interface SwapQuote {
+  amountIn: bigint;
+  /** Expected output before slippage — derive your minOut from this. */
+  expectedOut: bigint;
+  usdcReserve: bigint;
+  tokenReserve: bigint;
 }
 
 export class KeepClient {
@@ -178,6 +209,101 @@ export class KeepClient {
       hasDepositor,
     });
     return this.buildTx([ix], opts.backer, opts);
+  }
+
+  /**
+   * Buy the project token on the open market (Raydium) — works in any trading
+   * state (HoldPeriod1/2 or graduated Success). This is a normal swap with NO
+   * refund protection, distinct from `back`. Returns an unsigned Transaction.
+   */
+  async buy(projectId: bigint | number, opts: BuyOpts): Promise<Transaction> {
+    const raise = await this.requireTradable(projectId);
+    const pool = await this.loadPoolForRaise(raise);
+    const ixns = [
+      createAtaIdempotentInstruction(opts.trader, opts.trader, raise.projectTokenMint),
+      raydiumSwapInstruction(pool, opts.trader, true, opts.usdcIn, opts.minTokenOut),
+    ];
+    return this.buildTx(ixns, opts.trader, opts);
+  }
+
+  /**
+   * Sell the project token. During HoldPeriod the Keep-native `sell` is used (it
+   * refreshes the TWAP that drives the D+7/D+30 judgment, then swaps); once
+   * graduated (Success) it's a plain Raydium swap. Returns an unsigned Transaction.
+   */
+  async sell(projectId: bigint | number, opts: SellOpts): Promise<Transaction> {
+    const raise = await this.requireTradable(projectId);
+    const launchpad = this.launchpadAddress(projectId);
+    const pool = await this.loadPoolForRaise(raise);
+    const createUsdcAta = createAtaIdempotentInstruction(opts.trader, opts.trader, this.config.usdcMint);
+    const inHold =
+      raise.state === ProjectState.HoldPeriod1 || raise.state === ProjectState.HoldPeriod2;
+    const swapIx = inHold
+      ? sellNativeInstruction({
+          programId: this.programId,
+          launchpad,
+          pool,
+          seller: opts.trader,
+          tokenIn: opts.tokenIn,
+          minUsdcOut: opts.minUsdcOut,
+        })
+      : raydiumSwapInstruction(pool, opts.trader, false, opts.tokenIn, opts.minUsdcOut);
+    return this.buildTx([createUsdcAta, swapIx], opts.trader, opts);
+  }
+
+  /**
+   * Off-chain swap quote from the live pool reserves — use it to set a sane
+   * `minTokenOut` / `minUsdcOut` with your own slippage tolerance.
+   */
+  async quote(
+    projectId: bigint | number,
+    args: { side: 'buy' | 'sell'; amountIn: bigint },
+  ): Promise<SwapQuote> {
+    const pool = await this.loadPool(projectId);
+    const [r0, r1] = await Promise.all([
+      this.connection.getTokenAccountBalance(pool.token0Vault),
+      this.connection.getTokenAccountBalance(pool.token1Vault),
+    ]);
+    const a0 = BigInt(r0.value.amount);
+    const a1 = BigInt(r1.value.amount);
+    const usdcReserve = pool.usdcIsToken0 ? a0 : a1;
+    const tokenReserve = pool.usdcIsToken0 ? a1 : a0;
+    const expectedOut =
+      args.side === 'buy'
+        ? quoteSwapOut(args.amountIn, usdcReserve, tokenReserve)
+        : quoteSwapOut(args.amountIn, tokenReserve, usdcReserve);
+    return { amountIn: args.amountIn, expectedOut, usdcReserve, tokenReserve };
+  }
+
+  /** Load + decode the raise's Raydium pool. Throws if it isn't bootstrapped. */
+  async loadPool(projectId: bigint | number): Promise<PoolInfo> {
+    const raise = await this.getRaise(projectId);
+    if (!raise) throw new Error(`raise #${String(projectId)} not found`);
+    return this.loadPoolForRaise(raise);
+  }
+
+  private async requireTradable(projectId: bigint | number): Promise<RaiseAccount> {
+    const raise = await this.getRaise(projectId);
+    if (!raise) throw new Error(`raise #${String(projectId)} not found`);
+    if (!isTradable(raise.state)) {
+      throw new Error(`raise #${String(projectId)} is ${raise.state} — not trading yet`);
+    }
+    return raise;
+  }
+
+  private async loadPoolForRaise(raise: RaiseAccount): Promise<PoolInfo> {
+    if (raise.raydiumPool.equals(SystemProgram.programId)) {
+      throw new Error('raise has no Raydium pool yet (not bootstrapped)');
+    }
+    const ai = await this.connection.getAccountInfo(raise.raydiumPool);
+    if (!ai) throw new Error('Raydium pool account not found');
+    return decodePool({
+      raydiumProgram: this.config.raydiumCpmm,
+      poolState: raise.raydiumPool,
+      poolData: ai.data,
+      usdcMint: this.config.usdcMint,
+      projectMint: raise.projectTokenMint,
+    });
   }
 
   /** Assemble instructions into an unsigned tx with a compute budget + blockhash. */
