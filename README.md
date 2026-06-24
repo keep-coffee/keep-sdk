@@ -79,16 +79,6 @@ import { KeepClient } from '@keep-coffee/sdk';
 // A LangChain / ELIZA tool wrapper ships in examples/.
 ```
 
-## Honesty
-
-We'd rather you trust the chain than trust us:
-
-- Small team. The program is **governed by a multisig**, not a single key.
-- **No third-party audit.** The on-chain program is closed-source. Don't take our
-  word for the rules — read the contract state and verify them yourself.
-- Backers **cannot** pull a refund at will. Refunds exist only on the two failure
-  paths described above; a successful raise is a normal market, not a guarantee.
-
 ## License
 
-MIT — see [LICENSE](./LICENSE). The SDK is open; the on-chain program is not.
+MIT — see [LICENSE](./LICENSE).
