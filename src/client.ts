@@ -15,13 +15,20 @@ import {
 import type { Commitment } from '@solana/web3.js';
 import { NETWORKS } from './constants';
 import type { Network, NetworkConfig } from './constants';
-import { launchpadPda, depositorPda, claimPoolPda, factoryPda } from './pda';
-import { decodeRaise, decodeDepositor, decodeClaimPool, decodeFactory } from './accounts';
+import { launchpadPda, depositorPda, claimPoolPda, factoryPda, emergencyPda } from './pda';
+import {
+  decodeRaise,
+  decodeDepositor,
+  decodeClaimPool,
+  decodeFactory,
+  decodeEmergency,
+} from './accounts';
 import type {
   RaiseAccount,
   DepositorAccount,
   ClaimPoolAccount,
   FactoryConfigAccount,
+  EmergencyStateAccount,
 } from './accounts';
 import { ProjectState, AccessMode, isTradable } from './types';
 import { backInstructions } from './instructions/back';
@@ -211,6 +218,24 @@ export class KeepClient {
   async getFactory(): Promise<FactoryConfigAccount | null> {
     const ai = await this.connection.getAccountInfo(factoryPda(this.programId));
     return ai ? decodeFactory(ai.data) : null;
+  }
+
+  /** Read the emergency-freeze singleton. */
+  async getEmergencyState(): Promise<EmergencyStateAccount | null> {
+    const ai = await this.connection.getAccountInfo(emergencyPda(this.programId));
+    return ai ? decodeEmergency(ai.data) : null;
+  }
+
+  /** Whether the protocol is currently frozen (happy-path money flows paused). */
+  async isFrozen(): Promise<boolean> {
+    const e = await this.getEmergencyState();
+    return e ? e.frozenUntilTs > BigInt(Math.floor(Date.now() / 1000)) : false;
+  }
+
+  /** Whether new raises are paused (create_project disabled). */
+  async isPaused(): Promise<boolean> {
+    const f = await this.getFactory();
+    return f?.paused ?? false;
   }
 
   /**

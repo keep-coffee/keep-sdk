@@ -1,5 +1,8 @@
 # @keep-coffee/sdk
 
+[![CI](https://github.com/keep-coffee/keep-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/keep-coffee/keep-sdk/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+
 Non-custodial, refundable **onchain fundraising on Solana** — built for AI builders and agents.
 
 Keep lets a builder raise USDC from their users against a fixed target. The SDK

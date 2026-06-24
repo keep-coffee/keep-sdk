@@ -198,3 +198,20 @@ export function decodeFactory(data: Uint8Array): FactoryConfigAccount {
     feeSplitProjectBps: r.u16(),
   };
 }
+
+/** `EmergencyState` — the freeze singleton. `frozenUntilTs > now` ⟹ frozen. */
+export interface EmergencyStateAccount {
+  /** 0 = not frozen; else a unix ts the happy-path flows are frozen until. */
+  frozenUntilTs: bigint;
+  triggeredBy: PublicKey;
+  bump: number;
+}
+
+export function decodeEmergency(data: Uint8Array): EmergencyStateAccount {
+  const r = new Reader(body(data, 'EmergencyState'));
+  return {
+    frozenUntilTs: r.i64(),
+    triggeredBy: r.pubkey(),
+    bump: r.u8(),
+  };
+}

@@ -19,7 +19,8 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test test/*.test.ts",
+    "test": "npm run build && node test/run.mjs",
+    "test:live": "node test/read-mainnet.mjs",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
