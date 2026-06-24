@@ -49,21 +49,26 @@ You add your signer — a `Keypair`, a browser wallet, or an agent's signer — 
 ## Core API
 
 ```ts
-// Reads — available now
-keep.getRaise(projectId)                 // a raise's full on-chain state
-keep.getPosition(projectId, wallet)      // a backer's deposit position
-keep.getClaimPool(projectId)             // the failure-path refund pool
+// Reads
+keep.getRaise(projectId)                  // a raise's full on-chain state
+keep.getPosition(projectId, wallet)       // a backer's deposit position
+keep.getClaimPool(projectId)              // the failure-path refund pool
+keep.quote(projectId, { side, amountIn }) // expected swap output (to set minOut)
 
-// Back & refund — available now (Keep-native, refund-protected)
-keep.back(projectId, { amount, backer })       // fund a raise at the fixed price
-keep.claimRefund(projectId, { backer })        // refund on a failure / cancel path
+// Back, refund, claim (Keep-native, refund-protected)
+keep.back(projectId, { amount, backer })        // fund a raise at the fixed price
+keep.claimRefund(projectId, { backer })         // refund on a failure / cancel path
+keep.claim(projectId, { backer })               // collect your tokens on success
+
+// Trade the graduated market
+keep.buy(projectId,  { usdcIn,  minTokenOut, trader })  // open-market swap (Raydium)
+keep.sell(projectId, { tokenIn, minUsdcOut,  trader })  // Keep-native in hold, Raydium after
 
 // Coming next
-keep.claim(projectId, { backer })        // collect your tokens on success
-keep.buy(projectId,  { ... })            // open-market swap (Raydium)
-keep.sell(projectId, { ... })            // open-market sell (Keep-native, updates TWAP)
-keep.createRaise({ ... })                // a builder starts a raise
+keep.createRaise({ ... })                 // a builder starts a raise
 ```
+
+Every write method returns an unsigned `Transaction`.
 
 `back` and `buy` are different actions, deliberately kept distinct:
 
@@ -81,10 +86,29 @@ testing against another deployment, pass a custom `config` to `KeepClient`.
 
 ## Use it from an agent
 
+The SDK builds transactions; your agent's signer sends them — so it drops into any
+agent framework. Full LangChain tools are in
+[`examples/langchain-tools.ts`](./examples/langchain-tools.ts):
+
 ```ts
+import { DynamicStructuredTool } from '@langchain/core/tools';
+import { Connection, PublicKey } from '@solana/web3.js';
 import { KeepClient } from '@keep-coffee/sdk';
-// A LangChain / ELIZA tool wrapper ships in examples/.
+import { z } from 'zod';
+
+const keep = new KeepClient({ network: 'mainnet', connection: new Connection(RPC) });
+
+const backTool = new DynamicStructuredTool({
+  name: 'keep_back',
+  description: 'Build an unsigned transaction to back a Keep raise with USDC.',
+  schema: z.object({ projectId: z.number(), usdc: z.string(), backer: z.string() }),
+  func: async ({ projectId, usdc, backer }) =>
+    (await keep.back(projectId, { amount: BigInt(usdc), backer: new PublicKey(backer) }))
+      .serialize({ requireAllSignatures: false }).toString('base64'),
+});
 ```
+
+For plain-Node usage, see [`examples/read-and-back.ts`](./examples/read-and-back.ts).
 
 ## Resources
 
