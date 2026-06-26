@@ -9,8 +9,8 @@ Keep lets a builder raise USDC from their users against a fixed target. The SDK
 builds the transactions; **your wallet or agent signs them.** The SDK never holds
 a key and never touches funds — backers pay the contract directly.
 
-> Status: early development (pre-release `0.0.x`). The API below is stabilizing;
-> addresses and derivations are verified against the live mainnet program.
+> `0.1.0` — live on Solana mainnet (Keep program v2.4). Pre-1.0: the API may
+> still evolve. Every instruction is byte-checked against the on-chain program.
 
 ## Why it exists
 
