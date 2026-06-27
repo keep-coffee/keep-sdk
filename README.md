@@ -1,5 +1,6 @@
 # @keep-coffee/sdk
 
+[![npm](https://img.shields.io/npm/v/@keep-coffee/sdk.svg)](https://www.npmjs.com/package/@keep-coffee/sdk)
 [![CI](https://github.com/keep-coffee/keep-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/keep-coffee/keep-sdk/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
