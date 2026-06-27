@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const dir = dirname(fileURLToPath(import.meta.url));
-const skip = new Set(['run.mjs', 'read-mainnet.mjs']);
+const skip = new Set(['run.mjs', 'read-mainnet.mjs', 'live-verify.mjs']);
 const tests = readdirSync(dir).filter((f) => f.endsWith('.mjs') && !skip.has(f)).sort();
 
 let failed = 0;
