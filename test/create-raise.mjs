@@ -56,7 +56,11 @@ assert.strictEqual(d.length, 8 + 8 + 7 + 1 + 24 + 8 + 2, 'create_project data le
 const iv = initVaultsInstruction({ programId: PID, projectId, owner, mint, usdcMint: net.usdcMint });
 assert.ok(iv.programId.equals(PID) && iv.keys.length === 11, 'init_vaults 11 keys');
 const ivExpect = [
-  [launchpad, false, true], [mint, false, false], [net.usdcMint, false, false],
+  // mint MUST be writable: init_vaults' on-chain handler runs token::mint_to (writes
+  // supply) + token::set_authority (revokes mint authority). The Rust field has an
+  // `address` constraint but NO `mut`, so the writable flag is caller-supplied — a
+  // read-only flag reverts the whole createRaise. Matches proven e2e 01-create.mjs:87.
+  [launchpad, false, true], [mint, false, true], [net.usdcMint, false, false],
   [ata(net.usdcMint, launchpad), false, true], [ata(mint, launchpad), false, true],
   [owner, true, true], [poolAuthority, false, true],
   [TOKEN_PROGRAM_ID, false, false], [ASSOCIATED_TOKEN_PROGRAM_ID, false, false],

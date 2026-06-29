@@ -89,7 +89,7 @@ export function initVaultsInstruction(p: InitVaultsParams): TransactionInstructi
     programId: p.programId,
     keys: [
       k(launchpad, false, true),
-      k(p.mint, false, false),
+      k(p.mint, false, true), // project_token_mint (mut — init_vaults mint_to writes supply + revokes mint authority)
       k(p.usdcMint, false, false),
       k(ata(p.usdcMint, launchpad), false, true), // usdc_vault (launchpad-owned ATA)
       k(ata(p.mint, launchpad), false, true), // token_vault

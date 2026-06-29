@@ -1,6 +1,6 @@
 {
   "name": "@keep-coffee/sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "TypeScript SDK for Keep — non-custodial, refundable onchain fundraising on Solana, built for AI builders and agents.",
   "license": "MIT",
   "type": "module",
